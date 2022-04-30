@@ -1,6 +1,6 @@
 ---
 title: Choosing a tech stack for my personal dev blog in 2020
-published: true
+published: false
 datePublished: 1590463136775
 author: Colin McDonnell
 authorTwitter: colinhacks

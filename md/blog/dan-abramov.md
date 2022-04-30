@@ -1,6 +1,6 @@
 ---
 title: Dan Abramov knows about Devii
-published: true
+published: false
 datePublished: 1594425078471
 author: Colin McDonnell
 tags:
