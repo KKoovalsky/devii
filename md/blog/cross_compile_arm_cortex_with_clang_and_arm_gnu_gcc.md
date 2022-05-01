@@ -376,7 +376,7 @@ ${CMAKE_CXX_COMPILER}                                                        \
     <other per target lib*.a, *.o and *.obj files> 
 ```
 
-it will result in _multiple definitions error, for symbol printf_. The reason is that, the linker driver treats `libc.a`
+It will result in _multiple definitions error, for symbol printf_. The reason is that, the linker driver treats `libc.a`
 and `libcustom_printf.a` as being on the same abstraction level, being user-specified static libraries. In such case,
 there are two libraries with the same symbol, which is the `printf` symbol. If we force the linker driver to treat 
 `libc.a` (and friends), to be a special library, a standard library, then it will know that it is acceptable to 
@@ -386,7 +386,9 @@ linking, to pull unresolved symbols in all the object files of the program.
 Now we know that we can't use `-nostdlib` and `--sysroot` flags. Unfortunately, trying to compile simple C++ program
 we get bunch of undefined references error. Let's tackle it step by step.
 
-1. _unable to find library -lc -lm_
+### The nasty linker errors
+
+➡️  _unable to find library -lc -lm_
 
 Once again, `arm_gnu_toolchain_utils.cmake` to the rescue! The function `ArmGnu_GetStandardLibrariesDirectory` will
 retrieve the path to `libc.a` and `libm.a`. We can make use of it in our toolchain file.
@@ -400,7 +402,9 @@ set(CMAKE_EXE_LINKER_FLAGS_INIT "-L${standard_libraries_dir}")
 
 This will make the linker error related to `-lc lm` disappear.
 
-2. _unable to find library -lc++ -lc++abi_
+---
+
+➡️  _unable to find library -lc++ -lc++abi_
 
 `libc++` and `libc++abi` are part of LLVM Project. Naturally, clang wants to pull the standard library which he knows.
 `libstdc++` is the standard C++ library supplied by the ARM GNU GCC Toolchain, so we have to force `clang` to use it.
@@ -410,13 +414,88 @@ The `--stdlib=libstdc++` help us to fix it. We put it to the toolchain file:
 set(CMAKE_EXE_LINKER_FLAGS_INIT "-L${standard_libraries_dir} --stdlib=libstdc++")
 ```
 
-3. _unable to find library -lclang_rt.builtins-arm_
+---
+
+➡️  _unable to find library -lclang\_rt.builtins-arm_
 
 The same rule applies as for the `libc++` and `libc++abi` to the compiler runtime builtins. `clang` will try to pull
 the compiler runtime from `clang_rt` library, but we use `libgcc` instead. We need to announce that to the compiler
 with the `--rtlib` flag:
 
+```
 set(CMAKE_EXE_LINKER_FLAGS_INIT "-L${standard_libraries_dir} --stdlib=libstdc++ --rtlib=libgcc")
+```
+
+After this is done the linker raises `-lgcc` not found error. In the above CMake code line, there is no path to
+`libgcc.a` specified. We must supply it. The `ArmGnu_GetCompilerRuntimeLibrariesDirectory` helps us retrieve it:
+
+```
+ArmGnu_GetCompilerRuntimeLibrariesDirectory(${basic_architecture_flags} compiler_runtime_libraries_dir)
+set(CMAKE_EXE_LINKER_FLAGS_INIT 
+    "-L${standard_libraries_dir} -L${compiler_runtime_libraries_dir} --stdlib=libstdc++ --rtlib=libgcc")
+```
+
+> Small note on the side:  
+> `arm-none-eabi-gcc` features `-print-file-name` and `-print-libgcc-file-name` options. When called with proper
+> architecture flags, we can retrieve paths to `libc.a` and `libgcc.a` for our CPU. This is exactly what
+> `ArmGnu_GetCompilerRuntimeLibrariesDirectory()` and `ArmGnu_GetStandardLibrariesDirectory()` functions do.
+
+---
+
+_A bit offtopic now._ There will be more flags introduced to the `CMAKE_EXE_LINKER_FLAGS_INIT` variable. Let's create
+a prettier variable, where all the flags will be put:
+
+```
+string(CONCAT exe_linker_flags
+    " --rtlib=libgcc"
+    " --stdlib=libstdc++"
+    " -L${standard_libraries_dir}"
+    " -L${compiler_runtime_libraries_dir}"
+)
+set(CMAKE_EXE_LINKER_FLAGS_INIT "${exe_linker_flags}")
+```
+
+Note the space at the beginning of each string. The flags must be concatenated to a space-separated string.
+
+In the following bullets we will append the flags to the `exe_linker_flags` variable.
+
+---
+
+➡️  _unable to find library -lunwind_
+
+Although `libgcc.a` does not only contain the compiler runtime, but also the unwind library symbols, `clang` still 
+wants to link `libunwind.a`. But if we are certain, that all the symbols are satisfied, we can provide a dummy
+`libunwind.a` library only to satisfy the linker flag. `clang` supports `--unwindlib=[libgcc|libunwind|none]` flag
+which, unfortunately, doesn't seem to work for the targeted architecture. We can easily workaround it, by writing
+a function, which creates an empty `linbunwind.a` and returns a path to it. In the `llvm_toolchain_utils.cmake`:
+
+```
+function(Llvm_GetDummyLibunwindDirectory result_out_var)
+    set(libunwind_dir ${CMAKE_CURRENT_BINARY_DIR}/dummy_libunwind)
+    # To ensure portability use CMake command mode.
+    execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${libunwind_dir})
+    execute_process(COMMAND ${CMAKE_COMMAND} -E touch ${libunwind_dir}/libunwind.a)
+    set(${result_out_var} ${libunwind_dir} PARENT_SCOPE)
+endfunction()
+```
+
+We must call it in the toolchain file:
+
+```
+include(${CMAKE_CURRENT_LIST_DIR}/llvm_toolchain_utils.cmake)
+Llvm_GetDummyLibunwindDirectory(libunwind_dir)
+```
+
+Finally, we append the linker flag to `exe_linker_flags`:
+
+```
+    " -L${libunwind_dir}"
+```
+
+Done! The executable should compile at this stage. Sadly, it is not the end yet. We were able to compile a binary,
+but there are still few things missing.
+
+---
 
 TODO:
 A. Explain here -lgcc will not be found, so we use ArmGnu_Get... function to retrieve it.
