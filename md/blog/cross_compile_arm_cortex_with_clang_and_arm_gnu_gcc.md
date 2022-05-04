@@ -26,20 +26,24 @@ there. C++ is another thing, especially when uncommon things for the Embedded fi
 RTTI. This post will guide you through the process, and explain all the details. The setup is:
 
 * CMake 3.21 - the build system.
-* an ARM Cortex M MCU - STM32L432KC is used as a base.
+* An ARM Cortex M MCU - STM32L432KC is used as a base.
 * LLVM+Clang 14.0.0 - the compiler and other tools.
 * ARM GNU GCC Toolchain 10.3-2021.10 - libc, compiler runtime and friends.
 
 ---
 
-The main post contains dismembered peaces of CMake code, to keep the flow of explanation. At the end of this page
-there is a simplified [TLDR](#TLDR) guide, which contains only steps to be done, without getting into the details.
+## TLDR
+
+The main post contains dismembered pieces of CMake code, to keep the flow of explanation. I have created
+a template which allows you to use the toolchain file and the utilities without getting into the details.
+The template is located [here](https://github.com/KKoovalsky/CrossCompileArmCortexMWithCMakeAndClangAndArmGnuToolchainLibs).
+Make sure to read the main page of the repository, though. The template needs customization.
 
 ## The layout
 
 To make our project well-structured, we should group files by its purpose. Having that in mind, all the guidelines
 here will assume that the main `CMakeLists.txt` is put under the project root directory, and all the helper
-CMake scripts are put under `\<project root dir\>/cmake`.
+CMake scripts are put under `<project root dir>/cmake`.
 
 ## The CMake Toolchain file
 
@@ -71,17 +75,17 @@ set(CMAKE_SIZE ${CLANG_COMPILER_PATH_PREFIX}/llvm-size)
 As you can see I have introduced an `LLVM_TOOLCHAIN_PATH` variable, which is not set at this stage, so most probably
 we have to provide it somewhere else.
 
-This is a bit offtopic, but quite a necessary issue - the dependencies. We could provide the `LLVM_TOOLCHAIN_PATH`
+This is a bit off-topic, but quite a necessary issue - the dependencies. We could provide the `LLVM_TOOLCHAIN_PATH`
 in two ways:
 
-* download it "by hand" and call cmake with `LLVM_TOOLCHAIN_PATH` set to the downloaded path:
+* Download it "by hand" and call CMake with `LLVM_TOOLCHAIN_PATH` set to the downloaded path:
 
 ```
 # Download the LLVM+Clang toolchain under path: path/to/llvm+clang
 cmake -DLLVM_TOOLCHAIN_PATH=path/to/llvm+clang path/to/source/dir
 ```
 
-* download it automatically and set the `LLVM_TOOLCHAIN_PATH` from the top-level CMake file, using `FetchContent` 
+* Download it automatically and set the `LLVM_TOOLCHAIN_PATH` from the top-level CMake file, using `FetchContent` 
 module.
 
 I prefer much more the second approach. Let me explain why.
@@ -139,7 +143,7 @@ set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_LIST_DIR}/cmake/clang_with_arm_gnu_libs
 project(YourProjectName LANGUAGES CXX C ASM)
 ```
 
-After this is done, we can invoke the CMake configure and generate step as simple as that:
+After this is done, we can invoke the CMake configure and generate step, as simple as that:
 
 ```
 mkdir build && cd build/
@@ -160,17 +164,17 @@ Why I prefer using `FetchContent` to fetch even the toolchain:
 simplifying the onboarding. The initial setup is quicker and the building command is shorter. Less scripting when
 creating a pipeline, etc.
 * `FetchContent` allows you to provide the source location, consequently, skipping the downloading and updating, as
-it may be costly, since the LLVM Toolchain is quite heavy. One can provide a local installation to the LLVM+Clang
+it may be costly, since the LLVM Toolchain is quite heavy. One can provide a local installation of the LLVM+Clang
 by invoking CMake with `-DFETCHCONTENT_SOURCE_DIR_LLVM=path/to/local/llvm+clang` with the first run. See 
 [its documentation](https://cmake.org/cmake/help/latest/module/FetchContent.html#variable:FETCHCONTENT_SOURCE_DIR_%3CuppercaseName%3E)
 for more details.
 
 It looks tempting to call the `ProvideLlvm()` from the toolchain file, but it is not a good approach, because
-each time `try_compile()` is called the toolchain file is re-evaluated. `try_compile()` performs a build on the side
-so the dependencies will not be cached, thus `FetchContent` will no be prevented from redownloading the dependencies.
+each time `try_compile()` is called, the toolchain file is re-evaluated. `try_compile()` performs a build on the side
+so the dependencies will not be cached, thus `FetchContent` will not be prevented from redownloading the dependencies.
 Don't do that!
 
-## Bringing the compile flags
+## Bringing the compiler flags
 
 You might have already noticed that there is the major part still missing. The compiler flags. Let's append them
 to our toolchain file:
@@ -203,8 +207,8 @@ The `*_INIT` group of flags is used by CMake to create the `CMAKE_<LANG>_FLAGS`,
 source files. The `*_TARGET` group of flags are special flags used when CMake and Clang are used together. This is 
 a way to tell `clang`, that we are cross compiling.
 
-Cool! We have a basic toolchain file. Now if you try to compile a basic C source file using `add_executable()` command,
-it, obviously, will not work. You'll get bunch of errors:
+Cool! We have a basic toolchain file. Now, if you try to compile a basic C source file using `add_executable()` command,
+it, obviously, will not work. You'll get a bunch of errors:
 
 > ld.lld: error: unable to find library -lc  
 > ld.lld: error: unable to find library -lm  
@@ -235,9 +239,9 @@ more reliable solution. (Later on - in a next guide - I might show how to use th
 
 The ARM GNU Toolchain contains `libc.a`, `libm.a` and friends, as well as standard C++ libraries and compiler runtime
 (`libgcc.a`, `crt*` stuff), cross-compiled for each Cortex-M architecture. We can retrieve it from there and make
-use of it. To do that I have created an 
+use of it. To do that, I have created an 
 [utility file](https://github.com/KKoovalsky/CrossCompileArmCortexMWithCMakeAndClangAndArmGnuToolchainLibs/blob/main/cmake/arm_gnu_toolchain_utils.cmake)
-, which will retrieve proper paths for the specific architecture. The file contains four main CMake functions:
+which will retrieve proper paths for the specific architecture. The file contains four main CMake functions:
 
 ```
 ArmGnu_GetCSystemIncludeFlags(basic_architecture_flags result_out_var)
@@ -246,7 +250,7 @@ ArmGnu_GetStandardLibrariesDirectory(basic_architecture_flags result_out_var)
 ArmGnu_GetCompilerRuntimeLibrariesDirectory(basic_architecture_flags result_out_var)
 ```
 
-which expect the basic architecture flags (the same as set with the `${basic_architecture_flags}` variable) as the 
+Which expect the basic architecture flags (the same as set with the `${basic_architecture_flags}` variable) as the 
 first parameter. The second parameter is the variable that will be set as the result, AKA returned value.
 
 But before I get into the details, we need to pull the proper ARM GNU GCC Toolchain to the project. I will do it the 
@@ -290,7 +294,7 @@ How to get the proper system include flags in the first place? This is when the 
 functions can help us. They scrap the system include paths used by the ARM GNU GCC for the specific architecture.
 The functions call `arm-none-eabi-cpp`, from the ARM GNU Toolchain, with
 `${basic_architecture_flags} -xc* -v -E -` flags. This prints out a bunch of metadata about the compile process.
-What's necessary for us are the standard include paths. This is how the dump goes pretty much:
+What's necessary for us are the standard include paths. This is how the dump goes, pretty much:
 
 ```
 Using built-in specs.
@@ -359,9 +363,9 @@ ${CMAKE_CXX_COMPILER}                            \
 
 There is no way to prevent `--sysroot` to appear in the linker command. Why we don't want to have `--sysroot` in 
 the linker command? Because it will pull `path/to/arm_gnu_toolchain/arm-none-eabi/lib` path, where generic standard
-libraries are located and they are not fine-tuned for our architecture.
+libraries are located, and they are not fine-tuned for our architecture.
 
-Ok, but we could use `--sysroot` along with `-nostdlib`, and put the `-lc -lm ...` flags manually to the linker command,
+OK, but we could use `--sysroot` along with `-nostdlib`, and put the `-lc -lm ...` flags manually to the linker command,
 e.g. using `CMAKE_EXE_LINKER_FLAGS_INIT`. Well, yes, but 
 this will make overriding standard library symbols impossible. Consider having to override `printf` or `malloc`.
 If we create a custom static library `libcustom_printf.a` and then we link it in such a way:
@@ -384,7 +388,7 @@ redefine them by supplying custom version of them. Actually, the standard librar
 linking, to pull unresolved symbols in all the object files of the program.
 
 Now we know that we can't use `-nostdlib` and `--sysroot` flags. Unfortunately, trying to compile simple C++ program
-we get bunch of undefined references error. Let's tackle it step by step.
+we get a bunch of undefined references error. Let's tackle it step by step.
 
 ### The nasty linker errors
 
@@ -406,7 +410,7 @@ This will make the linker error related to `-lc lm` disappear.
 
 ➡️  _unable to find library -lc++ -lc++abi_
 
-`libc++` and `libc++abi` are part of LLVM Project. Naturally, clang wants to pull the standard library which he knows.
+`libc++` and `libc++abi` are part of LLVM Project. Naturally, clang wants to pull the standard library he knows.
 `libstdc++` is the standard C++ library supplied by the ARM GNU GCC Toolchain, so we have to force `clang` to use it.
 The `--stdlib=libstdc++` help us to fix it. We put it to the toolchain file:
 
@@ -426,7 +430,7 @@ with the `--rtlib` flag:
 set(CMAKE_EXE_LINKER_FLAGS_INIT "-L${standard_libraries_dir} --stdlib=libstdc++ --rtlib=libgcc")
 ```
 
-After this is done the linker raises `-lgcc` not found error. In the above CMake code line, there is no path to
+After this is done, the linker raises `-lgcc` not found error. In the above CMake code line, there is no path to
 `libgcc.a` specified. We must supply it. The `ArmGnu_GetCompilerRuntimeLibrariesDirectory` helps us retrieve it:
 
 ```
@@ -442,7 +446,7 @@ set(CMAKE_EXE_LINKER_FLAGS_INIT
 
 ---
 
-_A bit offtopic now._ There will be more flags introduced to the `CMAKE_EXE_LINKER_FLAGS_INIT` variable. Let's create
+_A bit off-topic now._ There will be more flags introduced to the `CMAKE_EXE_LINKER_FLAGS_INIT` variable. Let's create
 a prettier variable, where all the flags will be put:
 
 ```
@@ -466,7 +470,7 @@ In the following bullets we will append the flags to the `exe_linker_flags` vari
 Although `libgcc.a` does not only contain the compiler runtime, but also the unwind library symbols, `clang` still 
 wants to link `libunwind.a`. But if we are certain, that all the symbols are satisfied, we can provide a dummy
 `libunwind.a` library only to satisfy the linker flag. `clang` supports `--unwindlib=[libgcc|libunwind|none]` flag
-which, unfortunately, doesn't seem to work for the targeted architecture. We can easily workaround it, by writing
+which, unfortunately, doesn't seem to work for the targeted architecture. We can easily work around it, by writing
 a function, which creates an empty `linbunwind.a` and returns a path to it. In the `llvm_toolchain_utils.cmake`:
 
 ```
@@ -492,17 +496,215 @@ Finally, we append the linker flag to `exe_linker_flags`:
     " -L${libunwind_dir}"
 ```
 
-Done! The executable should compile at this stage. Sadly, it is not the end yet. We were able to compile a binary,
-but there are still few things missing.
+Done! The executable should compile at this stage. The `exe_linker_flags` at this point:
+
+```
+string(CONCAT exe_linker_flags
+    " --rtlib=libgcc"
+    " --stdlib=libstdc++"
+    " -L${standard_libraries_dir}"
+    " -L${compiler_runtime_libraries_dir}"
+    " -L${libunwind_dir}"
+)
+```
+
+Sadly, it is not the end yet. We are able to compile a binary, but there are still a few things missing.
+
+## A "flashable" binary
+
+When compiling a basic executable, the linker should have generated such a warning:
+
+> ld.lld: warning: cannot find entry symbol _start; not setting start address
+
+The reason is that we are missing a linker script. Normally, I use STM32CubeMX to generate the linker script for me.
+This time I will also use it, but before that, let me introduce a concept of a device-targeted executable. 
+
+Frequently, when an Embedded Ecosystem is considered (e.g. Zephyr, PlatformIO, ...), the idea of creating multiple
+executables within a single project is neglected. One of the major objectives for the environment we currently create
+is to have such an opportunity. Let's make it convenient by creating a `device_executable.cmake` file, with a 
+function `AddDeviceExecutable()` that will have the same interface as the built-in `add_executable()`. The function
+will be responsible for creating a proper "flashable" executable. 
+
+> _Note:_   
+> At this stage the guide becomes not universal. Nonetheless, the details differ just a bit and with the 
+> [template](https://github.com/KKoovalsky/CrossCompileArmCortexMWithCMakeAndClangAndArmGnuToolchainLibs)
+> you can adapt it to your case.
+
+I use STM32 HAL library with source code generated by STM32CubeMX, thus the basic setup the `AddDeviceExecutable()`
+must perform is:
+
+- Force linker to use specific linker script.
+- Include the startup code.
+- Link symbols which are used by the startup code.
+
+Adapt `AddDeviceExecutable()` to your case. What I do normally is I collect the HAL, LL library, CMSIS and the Cube
+generated sources to a single static library, with all the include directories as 
+`target_include_directories(... PUBLIC ...)`, and the necessary macro definitions 
+`target_compile_definitions(... PUBLIC USE_HAL_DRIVER STM32L432xx ...)`. Then I link this static library to each
+device executable. See a [ready-to-go implementation](https://github.com/KKoovalsky/AuraFW/blob/main/cmake/device_executable.cmake)
+of the `AddDeviceExecutable()` function, and how is the 
+[STM32CubeMX generated code](https://github.com/KKoovalsky/AuraFW/blob/main/src/device/cube/CMakeLists.txt)
+collected.
+
+See [the example implementation](https://github.com/KKoovalsky/CrossCompileArmCortexMWithCMakeAndClangAndArmGnuToolchainLibs/blob/main/cmake/device_executable.cmake).
+The startup file is linked to the executable as an `OBJECT` library, what can cause confusion. The main reason is
+that we want the startup file to be treated as a source file, being part of the executable target. This is done
+to force proper linkage of the symbols within it, when experimenting with compiler flags. We could add the
+startup file directly to the executable, without creating an `OBJECT` library, but that would lead to recompilation
+of the startup file for each executable separately. We simply spare some time with that approach.
+
+In the example mentioned, the basics: the linker script, startup code and dependencies for it, are located under 
+the [demo subdirectory](https://github.com/KKoovalsky/CrossCompileArmCortexMWithCMakeAndClangAndArmGnuToolchainLibs/tree/main/demo).
+
+Finally, one can call the function like so:
+
+```
+AddDeviceExecutable(some_exec1 main.c source1.c source2.c)
+AddDeviceExecutable(some_exec2 main.cpp source3.cpp source4.cpp)
+```
+
+### More linker errors
+
+> _Note (which corresponds to the previous "Note"):_  
+> This guide becomes (almost) universal again! You might not need all of the flags introduced with this subsection.
+> The redundant flags can only affect the binary size by <100B.
+
+Being able to create a "device" executable came at cost. We got more linker errors.
 
 ---
 
-TODO:
-A. Explain here -lgcc will not be found, so we use ArmGnu_Get... function to retrieve it.
-B. CMAKE_EXE_LINKER_FLAGS_INIT gets messy so let's create a nice variable to split the flags across multiple lines.
-C. Point 4. unable to find libunwind. Explain behavior, that clang doesn't know that libgcc contains unwind symbols.
-D. Explain dummy libunwind creation.
-E. Go by each error and reproduce it within the *Template project to see what errors will happen, and resolve them
-within this blog post.
-F. Explain the `.got` section in the disassembly and how to fix it, and what does it mean. 
-H. Why gc-sections flag.
+➡️  _undefined symbol: \_init_
+
+This linker error comes from that my startup file calls `__libc_init_array`, which in turn calls the `_init` 
+procedure. This is a leftover from a legacy scheme of linking global constructors and putting them into the `.init`
+section. We can provide a dummy `_init()` function and link it similar way to the `libunwind.a`, but let's firstly
+check out how does `arm-none-eabi-gcc` does that, since no such linker error is generated when using it.
+
+When cross-compiling using `arm-none-eabi-g{cc,++}` with `-###` flag, one can notice that it links the final executable
+more or less like that:
+
+```
+ld -o output_file crti.o crtbegin.o [custom libs and objects] -lgcc crtend.o crtn.o
+```
+
+Quickly iterating over the `crt*.o` objects using the `objdump -S` command, gives us an output that `crti.o` and 
+`crtn.o` contain `_init`, `_fini` symbols, and `.init`, `.fini` sections. 
+
+The place within the linker command, where GCC has put the custom objects and static libraries, is also not accidental. 
+This is due to legacy reason, for collection of the `.init` and `.fini` sections - the global constructors/destructors.
+In 2022+ we don't have to recreate the strict linking order - there is no need to put the custom libraries and objects
+in the middle of the line. That would complicate cross-compiling. Since the `.init`/`.fini` sections are replaced
+by _init_ and _fini_ arrays, it's sufficient that we keep the order of crtstuff, so this is what we will append to
+`exe_linker_flags`:
+
+```
+    " ${compiler_runtime_libraries_dir}/crti.o"
+    " ${compiler_runtime_libraries_dir}/crtbegin.o"
+    " ${compiler_runtime_libraries_dir}/crtend.o"
+    " ${compiler_runtime_libraries_dir}/crtn.o"
+```
+---
+
+➡️  undefined reference to `_open`, `_close`, `_stat`, `_sbrk`, ... more syscalls
+
+For baremetal:
+
+```
+    " -lnosys"
+```
+
+### Large final binary size
+
+Initially, this can be solved with:
+
+```
+    " -Wl,--gc-sections"
+```
+
+But that's not all. For a binary containing C++ object files where exceptions are used, the default 
+`__terminate_handler` is quite heavy (pulls additional 60 kB in Release mode). We can override it by supplying
+a custom one:
+
+```
+#include <exception>
+
+[[noreturn]] void terminate() noexcept
+{
+    while (true)
+        ;
+}
+
+namespace __cxxabiv1
+{
+std::terminate_handler __terminate_handler = terminate;
+}
+```
+
+It is empty, but you can fill the body of `terminate()` with any code you like. To link the custom terminate handler
+to each device executable, we need to create a library with the handler, inside `device_executable.cmake`:
+
+```
+# 1. Assumes that the script lies under <project_root>/cmake.
+# 2. Assumes the custom terminate implementation to be put under <project_root>/src/device/custom_terminate.cpp
+add_library(custom_terminate OBJECT 
+    ${CMAKE_CURRENT_LIST_DIR}/../src/device/custom_terminate.cpp)
+```
+
+To ensure each executable uses the `custom_terminate.cpp`, we must insert this piece of code to the
+`AddDeviceExecutable()` function:
+
+```
+target_sources(${target_name} PRIVATE $<TARGET_OBJECTS:custom_terminate>)
+```
+
+`custom_terminate` is linked as an OBJECT library, to force the symbol precedence.
+
+### Exceptions not working
+
+Trying to run the simplest C++ code that throws, leads to surprising behaviour, that none of the exceptions will
+be caught properly, and the code will crash.
+
+Running `arm-none-eabi-objdump -s` on the binary results in seeing a `.got` section landed in the executable. 
+It's related to stack unwinding and finding a proper `catch` handler, which is controlled with `R_ARM_TARGET2` 
+relocation. Although the 
+[Exception handling ABI for the ARM Architecture](https://github.com/ARM-software/abi-aa/blob/60a8eb8c55e999d74dac5e368fc9d7e36e38dda4/ehabi32/ehabi32.rst)
+explicitly claims that ARM baremetal uses `R_ABS32` for `R_ARM_TARGET2`, linking with:
+
+```
+    " -Wl,--target2=rel"
+```
+
+Makes the `.got` section disappear, and fixes exceptions to be caught properly.
+
+The option for `R_ABS32` is `--target2=abs`, thus, this is the option which should be working, but it doesn't.
+The `.got/.rel` scheme is used by 
+Linux and BSD targets, not on the ARM baremetal targets. To read further about the `--target2` flag, see the
+[GCC's ld ARM documentation](https://sourceware.org/binutils/docs/ld/ARM.html). 
+
+## Finalizing 
+
+After all the struggle, the final `exe_linker_flags` form is:
+
+```
+string(CONCAT exe_linker_flags
+    " --rtlib=libgcc"
+    " --stdlib=libstdc++"
+    " -L${standard_libraries_dir}"
+    " -L${compiler_runtime_libraries_dir}"
+    " -L${libunwind_dir}"
+    " ${compiler_runtime_libraries_dir}/crti.o"
+    " ${compiler_runtime_libraries_dir}/crtbegin.o"
+    " ${compiler_runtime_libraries_dir}/crtend.o"
+    " ${compiler_runtime_libraries_dir}/crtn.o"
+    " -lnosys"
+    " -Wl,--gc-sections"
+    " -Wl,--target2=rel"
+)
+```
+
+> _Note:_  
+> Few of the flags, e.g. `--stdlib` are C++ specific, thus they are redundant when compiling pure C executable. 
+> Because of that `clang` might generate warnings. If you don't like them, you can experiment supplying the linker
+> flags with the `-Xlinker` option used within `CMAKE_<LANG>_FLAGS_INIT`.
+
+Our toolchain file is complete!
