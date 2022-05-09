@@ -165,7 +165,8 @@ simplifying the onboarding. The initial setup is quicker and the building comman
 creating a pipeline, etc.
 * `FetchContent` allows you to provide the source location, consequently, skipping the downloading and updating, as
 it may be costly, since the LLVM Toolchain is quite heavy. One can provide a local installation of the LLVM+Clang
-by invoking CMake with `-DFETCHCONTENT_SOURCE_DIR_LLVM=path/to/local/llvm+clang` with the first run. See 
+by invoking CMake with `-DFETCHCONTENT_SOURCE_DIR_LLVM=path/to/local/llvm+clang` with the first run. The same can
+be done for the ARM GNU GCC toolchain. See 
 [its documentation](https://cmake.org/cmake/help/latest/module/FetchContent.html#variable:FETCHCONTENT_SOURCE_DIR_%3CuppercaseName%3E)
 for more details.
 
