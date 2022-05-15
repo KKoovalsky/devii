@@ -65,12 +65,12 @@ p {
 }
 
 blockquote {
-  border-left: 5px solid turquoise;
+  border-left: 5px solid deepskyblue;
   padding: 15px 0px 15px 15px;
   background-color: #f4f4f4;
   border-radius: 4px;
   width: 100%;
-  max-width: 550px;
+  max-width: 1000px;
   margin: 0.4em 0px;
 }
 
@@ -94,7 +94,7 @@ ol p {
 }
 
 a {
-  color: turquoise;
+  color: deepskyblue;
 }
 
 a:hover {
@@ -133,7 +133,7 @@ a:visited {
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  background-color: turquoise;
+  background-color: deepskyblue;
   color: white;
 }
 
@@ -204,7 +204,7 @@ hr {
 }
 
 .fork-button {
-  background-color: turquoise;
+  background-color: deepskyblue;
   border-radius: 10px;
   border: none;
   color: white;
@@ -213,7 +213,7 @@ hr {
   cursor: pointer;
 }
 .fork-button:hover {
-  background-color: mediumturquoise;
+  background-color: lightskyblue;
 }
 
 .author-container {
@@ -267,7 +267,7 @@ hr {
 
 .blog-post-title {
   width: 100%;
-  max-width: 550px;
+  max-width: 1000px;
   margin-bottom: 15px;
   padding: 40px 10px;
 }
@@ -290,16 +290,16 @@ hr {
 
 .blog-post-content {
   width: 100%;
-  max-width: 550px;
+  max-width: 1000px;
   padding: 0px 10px;
 }
 
 .follow-button {
   display: inline-block;
-  border: 1px solid turquoise;
+  border: 1px solid deepskyblue;
   border-radius: 4px;
   padding: 2px 10px;
-  color: turquoise;
+  color: deepskyblue;
   font-size: 10pt;
   margin-bottom: 2px;
   margin-left: 4px;
