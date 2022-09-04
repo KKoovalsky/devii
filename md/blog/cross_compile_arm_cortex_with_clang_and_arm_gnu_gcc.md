@@ -110,7 +110,7 @@ cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/clang_with_arm_gnu_libs_device_toolchain.c
 
 The toolchain file will be loaded before evaluation of the `project()` function. It means that we have quite a space
 where we could prepare our project for the invocation of the toolchain file. What's cool is that `FetchContent` module
-works before the evaluation of `project()`, so we can make use of it to download the LLVM toolchain.
+works even before the evaluation of `project()`, so we can make use of it to download the LLVM toolchain.
 
 Let's create a `dependencies.cmake` file with a function like that:
 
