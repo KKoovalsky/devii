@@ -80,7 +80,7 @@ blockquote p {
 
 code {
   background-color: #00000010;
-  padding: 3px 3px;
+  padding: 3px 0px;
   border-radius: 2px;
 }
 
