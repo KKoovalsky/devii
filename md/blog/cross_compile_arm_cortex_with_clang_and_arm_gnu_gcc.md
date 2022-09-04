@@ -39,6 +39,13 @@ a template which allows you to use the toolchain file and the utilities without 
 The template is located [here](https://github.com/KKoovalsky/CrossCompileArmCortexMWithCMakeAndClangAndArmGnuToolchainLibs).
 Make sure to read the main page of the repository, though. The template needs customization.
 
+> _Note:_   
+> In the meantime of writing this blog post, and preparing code for it, 
+> [LLVM Embedded Toolchain for ARM](https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm) was released.
+> It doesn't support exceptions though, but this guide targets building with exception support. If you don't need
+> exceptions I still recommend reading the post, as it presents how one can use CMake to automate toolchain setup, and
+> device executable creation.
+
 ## The layout
 
 To make our project well-structured, we should group files by its purpose. Having that in mind, all the guidelines
